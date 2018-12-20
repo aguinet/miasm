@@ -63,7 +63,7 @@ class LLVMType(llvm_ir.Type):
         return precision
 
 
-class LLVMContext():
+class LLVMContext(object):
 
     "Context for llvm binding. Stand for a LLVM Module"
 
@@ -465,6 +465,23 @@ class LLVMContext_IRCompilation(LLVMContext):
     """Extend LLVMContext in order to handle memory management and custom
     operations for Miasm IR compilation"""
 
+    def new_module(self, name="", llvm_os="unknown"):
+        super(LLVMContext_IRCompilation, self).new_module(name)
+        # Guess a module triple close to the original architecture!
+        miasm_arch = self.ir_arch.arch
+        llvm_arch = miasm_arch.name
+        llvm_variant = "unknown"
+        if llvm_arch == "x86":
+            attrib = self.ir_arch.attrib
+            if attrib == 16:
+                llvm_arch = "i386"
+                llvm_variant = "code16"
+            elif attrib == 32:
+                llvm_arch = "i386"
+            elif attrib == 64:
+                llvm_arch = "x86_64"
+        self.mod.triple = "%s-pc-%s-%s" % (llvm_arch, llvm_os, llvm_variant)
+
     def memory_lookup(self, func, addr, size):
         """Perform a memory lookup at @addr of size @size (in bit)"""
         builder = func.builder
@@ -504,11 +521,11 @@ class LLVMFunction(object):
                                      'bcdadd_cf': 'bcdadd_cf',
     }
 
-    def __init__(self, llvm_context, name="fc", new_module=True):
+    def __init__(self, llvm_context, name="fc", new_module=True, llvm_os="unknown"):
         "Create a new function with name @name"
         self.llvm_context = llvm_context
         if new_module:
-            self.llvm_context.new_module()
+            self.llvm_context.new_module(llvm_os)
         self.mod = self.llvm_context.get_module()
 
         self.my_args = []  # (Expr, LLVMType, Name)
